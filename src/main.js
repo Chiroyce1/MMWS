@@ -40,6 +40,7 @@ const mmws = {
     "error":                () => console.warn,
     "embeddedCounter":      () => 0,
     "inlineMMWSCounter":    () => 0,
+    "inlineMMWSMap":        () => Object(),
 };
 Object.keys(mmws).forEach(k => mmws[k] = mmws[k]());
 
@@ -179,8 +180,7 @@ function mmwsToCSS(code) {
 
 async function mmwsConvertTagsToCSS() {
     let cssCode, element, fileName,
-        inlineCode, mmwsCode, response,
-        styleEl;
+        mmwsCode, response, styleEl;
 
     for (element of document.querySelectorAll("mmws")) {
         fileName = element.getAttribute("src");
@@ -219,33 +219,47 @@ async function mmwsConvertTagsToCSS() {
         }
         element.remove();
     }
+    
+}
 
-    inlineCode = "";
+
+function mmwsConvertInlineMMWS() {
+    let element, mmwsCode, resultCSS;
+
+    resultCSS = "";
     for (element of document.querySelectorAll("[mmws]")) {
-        if (!element.id) {
-            mmws.inlineMMWSCounter++;
-            element.id = `--mmws-inline-${mmws.inlineMMWSCounter}`;
-        }
         mmwsCode = element.getAttribute("mmws");
-        mmwsCode = mmwsCode
-            .split(mmws.regexNotInString(/\|/))
+        if (!element.id) {
+            while (document.querySelector(`#--mmws-inline${
+                mmws.inlineMMWSCounter.toString(16)
+            }`)) {
+                mmws.inlineMMWSCounter++;
+            }
+            element.id = `--mmws-inline-${
+                mmws.inlineMMWSCounter.toString(16)
+            }`;
+        }
+        mmws.inlineMMWSMap[element.id] = mmwsCode;
+        mmwsCode = `#${element.id}\n` + mmwsCode
+            .split(mmws.regexNotInString(/\|/g))
             .map(s => s.trim())
             .map(s => `    ${s}`)
             .join("\n");
-        mmwsCode = `#${element.id}\n${mmwsCode}`;
-        cssCode = mmwsToCSS(mmwsCode);
-        inlineCode += cssCode;
-        console.log(mmwsCode);
-        console.log(cssCode);
+        resultCSS += mmwsToCSS(mmwsCode);
     }
-    if (inlineCode) {
-        styleEl = document.createElement("style");
-        styleEl.classList.add("--mmws");
-        styleEl.id = `--mmws-from-inline`;
-        styleEl.innerHTML = cssCode;
-        document.head.appendChild(styleEl);
+
+    if (!document.querySelector("#--mmws-inline-style")) {
+        element = document.createElement("style");
+        element.id = "--mmws-inline-style";
+        document.head.appendChild(element);
+    }
+    if (
+        resultCSS !== document.querySelector("#--mmws-inline-style").innerHTML
+    ) {
+        document.querySelector("#--mmws-inline-style").innerHTML = resultCSS;
     }
 }
 
 
 mmwsConvertTagsToCSS();
+setInterval(mmwsConvertInlineMMWS);
